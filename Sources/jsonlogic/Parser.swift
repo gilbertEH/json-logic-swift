@@ -159,6 +159,30 @@ struct Comparison: Expression {
     }
 }
 
+struct YearLessOrEqual: Expression {
+    let arg: Expression
+    
+    func evalWithData(_ data: JSON?) throws -> JSON {
+        let result = try arg.evalWithData(data)
+        switch result {
+        case let .Array(array) where array.count == 2:
+            guard case let JSON.Double(timestamp) = array[0],
+                case let JSON.Int(year) = array[1] else {
+                return JSON(false)
+            }
+            let calendar = Calendar.current
+            let currentYear = calendar.component(.year, from: Date())
+            
+            let date = Date(timeIntervalSince1970: timestamp)
+            let dateYear = Calendar.current.component(.year, from: date)
+            return JSON((dateYear - currentYear) <= year)
+        default:
+            return JSON(false)
+        }
+    }
+    
+}
+
 //swiftlint:disable:next type_name
 struct If: Expression {
     let arg: ArrayOfExpressions
@@ -660,6 +684,8 @@ class Parser {
             return Comparison(arg: try self.parse(json: value), operation: >=)
         case "<=":
             return Comparison(arg: try self.parse(json: value), operation: <=)
+        case "years<=":
+            return YearLessOrEqual(arg: try self.parse(json: value))
         case "if", "?:":
             guard let array = try self.parse(json: value) as? ArrayOfExpressions else {
                 throw ParseError.GenericError("\(key) statement be followed by an array")
