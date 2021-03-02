@@ -162,14 +162,30 @@ struct Comparison: Expression {
 struct YearLessOrEqual: Expression {
     let arg: Expression
     
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd'T'HH:mm:ssZ"
+        formatter.calendar = Calendar(identifier: .gregorian)
+        return formatter
+    }()
+    
     func evalWithData(_ data: JSON?) throws -> JSON {
         let result = try arg.evalWithData(data)
         switch result {
         case let .Array(array) where array.count == 2:
-            guard case let JSON.Double(timestamp) = array[0],
-                case let JSON.Int(year) = array[1] else {
+            guard case let JSON.Int(year) = array[1] else {
                 return JSON(false)
             }
+            
+            let timestamp: Double
+            if case let JSON.String(timestampString) = array[0], let date = Self.dateFormatter.date(from: timestampString) {
+                timestamp = date.timeIntervalSince1970
+            } else if case let JSON.Double(unixTimestamp) = array[0] {
+                timestamp = unixTimestamp
+            } else {
+                return JSON(false)
+            }
+            
             let calendar = Calendar.current
             let currentYear = calendar.component(.year, from: Date())
             
